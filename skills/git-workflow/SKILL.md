@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: Git workflow for repositories where master is production and protected: personal dev branches, Conventional Commits, rebase before you push, green checks before merge. Use when branching, committing, rebasing, syncing with origin/master, pushing, or opening or updating a pull request.
+description: Git workflow for repositories where master is production and protected — personal dev branches, Conventional Commits, rebase before you push, green checks before merge. Use when branching, committing, rebasing, syncing with origin/master, pushing, or opening or updating a pull request.
 ---
 
 # Git workflow
