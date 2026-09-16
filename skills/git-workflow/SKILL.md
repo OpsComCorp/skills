@@ -5,7 +5,7 @@ description: Git workflow for repositories where master is production and protec
 
 # Git workflow
 
-`master` is production. Every push to it deploys, so a merge is a deploy rather than a checkpoint: work happens on a personal dev branch and lands through a pull request with green checks.
+`master` is production. Every push to it deploys, so a merge is a deploy rather than a checkpoint: this is GitHub Flow on long-lived personal branches — each developer integrates on their own branch and lands work through a pull request with green checks.
 
 A repo states its own gates and may override this workflow; read its `CONTRIBUTING.md`, `AGENTS.md` or `CLAUDE.md`, and its `package.json` scripts first. What follows is the default when the repo is silent.
 
