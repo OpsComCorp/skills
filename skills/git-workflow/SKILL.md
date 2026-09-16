@@ -1,9 +1,9 @@
 ---
-name: contributing
-description: Contribution workflow for repositories where master is production and protected. Use when creating a branch, committing, syncing with origin/master, rebasing, pushing, or opening or updating a pull request.
+name: git-workflow
+description: Git workflow for repositories where master is production and protected: personal dev branches, Conventional Commits, rebase before you push, green checks before merge. Use when branching, committing, rebasing, syncing with origin/master, pushing, or opening or updating a pull request.
 ---
 
-# Contributing
+# Git workflow
 
 `master` is production. Every push to it deploys, so a merge is a deploy rather than a checkpoint: work happens on a personal dev branch and lands through a pull request with green checks.
 
