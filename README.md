@@ -20,3 +20,4 @@ cp -r skills/git-workflow ~/.claude/skills/
 ## Skills
 
 - [`git-workflow`](skills/git-workflow/SKILL.md) — branch, commit, sync/rebase and pull-request workflow for repositories where `master` is production: personal dev branches, Conventional Commits, rebase before you push, green checks before merge.
+- [`opscom-design-system`](skills/opscom-design-system/SKILL.md) — how to build and restyle OpsCom UI on [OpsComCorp/design-system](https://github.com/OpsComCorp/design-system): read its `DESIGN.md` and `tokens/theme.css` for every value, the rules agents get wrong, and the migrate-on-touch policy for older repos.
