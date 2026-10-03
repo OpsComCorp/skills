@@ -52,6 +52,8 @@ skills/
   <name>/
     SKILL.md     # what the agent reads: front matter + instructions
     README.md    # what people read: the idea + how to install
+tests/           # pnpm test (offline) and pnpm test:online
+.woodpecker/     # CI: runs pnpm verify on every PR and master push
 README.md        # this file
 ```
 
@@ -84,13 +86,32 @@ The CLI finds every `skills/<name>/SKILL.md` on `master`. A merge to `master` is
 4. **Write the instructions** in `SKILL.md`. The house rules are below.
 5. **Add `README.md`** next to it. Give the idea in a few lines, what the skill depends on, and the install commands. Copy the shape of an existing skill's README.
 6. **List it** in the table above.
-7. **Check that the CLI sees it**, then try it in a scratch repo:
+7. **Run the tests**, then try the skill in a scratch repo:
 
    ```sh
-   npx skills add . --list
+   pnpm install
+   pnpm verify
    ```
 
-8. **Open a PR to `master`.** Once it merges, the skill is installable.
+8. **Open a PR to `master`.** CI runs the same `pnpm verify`; once it is green and merged, the skill is installable.
+
+## Tests
+
+`pnpm verify` runs both suites. CI runs it on [ci.opscom.io](https://ci.opscom.io) for every PR and every push to `master`.
+
+- **`pnpm test`** (offline) checks each skill against the [Agent Skills spec](https://agentskills.io/specification):
+  - `SKILL.md` and `README.md` exist.
+  - `name` matches the folder and is lowercase kebab-case.
+  - `description` is 1–1024 characters.
+  - `SKILL.md` stays under 500 lines.
+  - The skills CLI lists the skill.
+
+  Across the whole repo it checks:
+  - The table above lists exactly the skill folders.
+  - Relative links resolve.
+  - Table rows stay within 120 characters.
+  - No file holds internal detail: home paths, local project paths, Linear URLs or ticket IDs.
+- **`pnpm test:online`** checks that every external URL in a Markdown file still answers. Skills point at other repos, so a rename there can break a skill here.
 
 ### House rules for skill content
 

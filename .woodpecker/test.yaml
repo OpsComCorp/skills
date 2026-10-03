@@ -1,0 +1,23 @@
+# `pnpm verify` on Woodpecker CI (https://ci.opscom.io): the offline skill checks
+# (shape, front matter, README table, links, public-repo hygiene, skills CLI),
+# then the online check that every external URL still answers. It runs on every
+# PR and every master push; protect master with this check.
+#
+# The agent caps every step container at 2 CPUs / 6 GB
+# (WOODPECKER_BACKEND_DOCKER_LIMIT_* on the agent).
+when:
+  - event: pull_request
+  - event: push
+    branch: master
+  - event: manual
+
+steps:
+  - name: verify
+    image: node:24
+    environment:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    commands:
+      # corepack reads the pnpm version from package.json "packageManager".
+      - corepack enable pnpm
+      - pnpm install --frozen-lockfile
+      - pnpm verify

@@ -1,0 +1,20 @@
+{
+  "name": "@opscom/skills",
+  "private": true,
+  "description": "OpsCom agent skills, installable with the skills CLI. The tests check their shape, links and public-repo hygiene.",
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "test:online": "node --test tests/urls.ts",
+    "verify": "pnpm test && pnpm test:online"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "skills": "1.7.0",
+    "yaml": "^2.9.1"
+  }
+}
