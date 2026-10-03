@@ -2,13 +2,13 @@
 
 Keeps every OpsCom UI on one look: the opscom.io homepage system published in [OpsComCorp/design-system](https://github.com/OpsComCorp/design-system).
 
-The skill holds no colors, sizes or fonts. It sends the agent to that repo's `DESIGN.md` and `tokens/theme.css` for every value, and adds the rules agents tend to get wrong. New pages and components start on the system. Older UI in `crm`, `demo` and `landing-v3` moves over when someone touches it. To change a value, edit the design-system repo, never an app.
+The skill holds no colors, sizes or fonts. It sends the agent to that repo's `DESIGN.md` and `tokens/theme.css` for every value, and adds the rules agents tend to get wrong. New pages and components start on the system. Older UI in existing projects moves over when someone touches it. To change a value, edit the `design-system` repo, never an app.
 
 The full instructions are in [`SKILL.md`](SKILL.md).
 
 **When it triggers:** building or restyling OpsCom UI, wiring `theme.css` into a shadcn/Tailwind app, editing an older-looking page in an OpsCom repo, or questions about OpsCom colors, fonts or buttons.
 
-**Needs:** network access to GitHub, or a local checkout at `~/Projects/opscom/design-system`.
+**Needs:** network access to GitHub, or a local clone of the `design-system` repo.
 
 ## Install
 

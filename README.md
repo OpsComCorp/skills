@@ -6,10 +6,10 @@ A skill is a folder with a `SKILL.md` in it. The file starts with YAML front mat
 
 ## Skills
 
-| Skill                                                           | What it is for                            |
-| --------------------------------------------------------------- | ----------------------------------------- |
-| [`git-workflow`](skills/git-workflow/README.md)                 | Git and PR flow when `master` is prod     |
-| [`opscom-design-system`](skills/opscom-design-system/README.md) | OpsCom UI on the design-system repo       |
+| Skill                                                           | What it is for                        |
+| --------------------------------------------------------------- | ------------------------------------- |
+| [`git-workflow`](skills/git-workflow/README.md)                 | Git and PR flow when `master` is prod |
+| [`opscom-design-system`](skills/opscom-design-system/README.md) | OpsCom UI on the design-system repo   |
 
 Each link opens the skill's README, which gives the idea and the install commands. The instructions themselves live in that folder's `SKILL.md`.
 
@@ -69,16 +69,18 @@ The CLI finds every `skills/<name>/SKILL.md` on `master`. A merge to `master` is
    Run it from inside `skills/`. Given a path (`init skills/<name>`), it writes the path into `name:`.
 
    Use lowercase kebab-case for `<name>`. Prefix it with `opscom-` when the skill only makes sense inside OpsCom.
+
 3. **Write the front matter.**
 
    ```yaml
    ---
-   name: <name>                  # must match the folder name
-   description: "What it does. Use when … (the tasks, files and words that should trigger it)."
+   name: <name> # must match the folder name
+   description: 'What it does. Use when … (the tasks, files and words that should trigger it).'
    ---
    ```
 
    The description is the only thing an agent sees before it decides to load the skill. Name the tasks, the files and the words a user would say. Quote the whole value if it contains a colon.
+
 4. **Write the instructions** in `SKILL.md`. The house rules are below.
 5. **Add `README.md`** next to it. Give the idea in a few lines, what the skill depends on, and the install commands. Copy the shape of an existing skill's README.
 6. **List it** in the table above.

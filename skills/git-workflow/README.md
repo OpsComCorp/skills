@@ -3,6 +3,7 @@
 The default git flow for repos where `master` is production. Every merge deploys, so work lands only through a reviewed pull request with green checks.
 
 In short:
+
 - Each developer works on a long-lived personal branch (`alice-dev`).
 - Commits follow Conventional Commits.
 - Rebase onto `origin/master` before you push.

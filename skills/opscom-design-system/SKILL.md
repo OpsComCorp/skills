@@ -1,6 +1,6 @@
 ---
 name: opscom-design-system
-description: "How to build and restyle OpsCom UI on the OpsCom design system — the opscom.io homepage look published as DESIGN.md plus a generated shadcn/Tailwind v4 theme in the OpsComCorp/design-system repo. Use when creating a new page, component or demo app for OpsCom; wiring tokens/theme.css into a shadcn app; touching UI in crm, demo, landing-v3 or another OpsCom repo that still has its own older look; or answering questions about OpsCom colors, fonts, spacing, buttons or brand. Not for authoring the DESIGN.md format itself (use design-md for that)."
+description: 'How to build and restyle OpsCom UI on the OpsCom design system — the opscom.io homepage look published as DESIGN.md plus a generated shadcn/Tailwind v4 theme in the OpsComCorp/design-system repo. Use when creating a new page, component or demo app for OpsCom; wiring tokens/theme.css into a shadcn app; touching UI in an OpsCom repo that still has its own older look; or answering questions about OpsCom colors, fonts, spacing, buttons or brand. Not for authoring the DESIGN.md format itself (use design-md for that).'
 ---
 
 # OpsCom design system
@@ -19,9 +19,9 @@ Before you write or review any UI, read these two files and take every value fro
 Use a local checkout when there is one, and fetch from GitHub otherwise:
 
 ```sh
-# local checkout (OpsCom workspace)
-cat ~/Projects/opscom/design-system/DESIGN.md
-git -C ~/Projects/opscom/design-system pull --ff-only   # make sure it is current
+# local clone of OpsComCorp/design-system
+git -C path/to/design-system pull --ff-only   # make sure it is current
+cat path/to/design-system/DESIGN.md
 
 # anywhere else
 curl -fsSL https://raw.githubusercontent.com/OpsComCorp/design-system/master/DESIGN.md
@@ -60,14 +60,14 @@ An app without Tailwind can still follow the system: read the CSS variables from
 
 ## Migrating older UI: on touch, not all at once
 
-`crm`, `demo`, `landing-v3` (outside the homepage) and other older repos have their own look. They move to the design system gradually:
+Older repos have their own look. They move to the design system gradually:
 
 - **New UI in an old repo uses the design system.** Don't copy the surrounding legacy style into a new component or page.
 - **Touching old UI? Offer to migrate it in the same PR.** When a task changes a component or page that still uses the old look, tell the user and propose migrating that component or page as part of the change. Keep it to what the task touches — never restyle neighbors as a side effect. If the user declines, leave the old style alone.
 - **Migrate whole units.** A component or page is either on the system or not. Don't mix old and new tokens inside one component.
 - **Never import `theme.css` globally into a mixed repo.** It sets `:root`, `.dark`, fonts, radius and breakpoints for the whole app, so every route that keeps its own look changes with it. In a repo where some routes stay on their old look, scope the system to the routes that adopt it. The repo's migration ticket says how. Before the first import, read the repo's global CSS for overrides that would cancel the tokens (forced radii, forced font weights, remapped palette classes).
 - **Leave deliberate looks alone.** A route whose bespoke visual identity is the product (a film, a 3D scene, a customer-branded demo) stays as is unless the user says otherwise.
-- **Track it.** Each repo's migration plan lives in its Linear project. Mention the ticket in the PR when a migration rides along.
+- **Track it.** Each repo's migration plan lives in its issue tracker. Mention the ticket in the PR when a migration rides along.
 
 ## Changing the system
 
