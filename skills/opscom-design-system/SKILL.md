@@ -51,7 +51,7 @@ These are the decisions agents most often get wrong. The values behind them are 
 New pages, components and demo apps start on the design system — no exceptions without the user's say-so.
 
 1. Read `DESIGN.md` and the repo `README.md`.
-2. In a shadcn/Tailwind v4 app, install `tokens/theme.css` exactly as the README says, including deleting shadcn's own generated theme blocks.
+2. In a new shadcn/Tailwind v4 app, install `tokens/theme.css` exactly as the README says, including deleting shadcn's own generated theme blocks. In an existing app, see "Migrating older UI" below first.
 3. Give shadcn's Button the pill shape in the app's `components/ui/button.tsx`, as DESIGN.md's Do's and Don'ts require.
 4. Build from shadcn components styled by the tokens. Only write a custom component when DESIGN.md describes one (its Components section) and shadcn has nothing close.
 5. Check the result against DESIGN.md's Do's and Don'ts before calling it done, and look at it in a browser at a phone width and a desktop width.
@@ -65,7 +65,7 @@ An app without Tailwind can still follow the system: read the CSS variables from
 - **New UI in an old repo uses the design system.** Don't copy the surrounding legacy style into a new component or page.
 - **Touching old UI? Offer to migrate it in the same PR.** When a task changes a component or page that still uses the old look, tell the user and propose migrating that component or page as part of the change. Keep it to what the task touches — never restyle neighbors as a side effect. If the user declines, leave the old style alone.
 - **Migrate whole units.** A component or page is either on the system or not. Don't mix old and new tokens inside one component.
-- **Shared chrome first.** In a repo that has not imported `theme.css` yet, the first migration step is importing it without breaking the existing look (the repo's migration ticket says how); after that, components move one by one.
+- **Never import `theme.css` globally into a mixed repo.** It sets `:root`, `.dark`, fonts, radius and breakpoints for the whole app, so every route that keeps its own look changes with it. In a repo where some routes stay on their old look, scope the system to the routes that adopt it. The repo's migration ticket says how. Before the first import, read the repo's global CSS for overrides that would cancel the tokens (forced radii, forced font weights, remapped palette classes).
 - **Leave deliberate looks alone.** A route whose bespoke visual identity is the product (a film, a 3D scene, a customer-branded demo) stays as is unless the user says otherwise.
 - **Track it.** Each repo's migration plan lives in its Linear project. Mention the ticket in the PR when a migration rides along.
 
