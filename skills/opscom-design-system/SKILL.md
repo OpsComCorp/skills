@@ -67,7 +67,7 @@ Older repos have their own look. They move to the design system gradually:
 - **Migrate whole units.** A component or page is either on the system or not. Don't mix old and new tokens inside one component.
 - **Never import `theme.css` globally into a mixed repo.** It sets `:root`, `.dark`, fonts, radius and breakpoints for the whole app, so every route that keeps its own look changes with it. In a repo where some routes stay on their old look, scope the system to the routes that adopt it. The repo's migration ticket says how. Before the first import, read the repo's global CSS for overrides that would cancel the tokens (forced radii, forced font weights, remapped palette classes).
 - **Leave deliberate looks alone.** A route whose bespoke visual identity is the product (a film, a 3D scene, a customer-branded demo) stays as is unless the user says otherwise.
-- **Track it.** Each repo's migration plan lives in its issue tracker. Mention the ticket in the PR when a migration rides along.
+- **Track it.** Each repo's migration plan lives in its Linear project. Mention the ticket in the PR when a migration rides along.
 
 ## Changing the system
 
