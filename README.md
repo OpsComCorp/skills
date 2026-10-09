@@ -10,6 +10,7 @@ A skill is a folder with a `SKILL.md` in it. The file starts with YAML front mat
 | --------------------------------------------------------------- | ------------------------------------- |
 | [`git-workflow`](skills/git-workflow/README.md)                 | Git and PR flow when `master` is prod |
 | [`opscom-design-system`](skills/opscom-design-system/README.md) | OpsCom UI on the design-system repo   |
+| [`woodpecker-pipelines`](skills/woodpecker-pipelines/README.md) | Woodpecker CI workflows, PR to deploy |
 
 Each link opens the skill's README, which gives the idea and the install commands. The instructions themselves live in that folder's `SKILL.md`.
 

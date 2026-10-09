@@ -1,0 +1,112 @@
+# Builds master, pushes the image to GHCR, then redeploys production.
+#
+# Production is the EasyPanel service <ep-service> in project <ep-project> on
+# <easypanel-url>, running ghcr.io/<org>/<app>:latest. Its runtime env is set in
+# the panel and never written from CI.
+#
+# Org secrets this needs, allowed on push + manual:
+#   ghcr_username     GitHub user that owns ghcr_token
+#   ghcr_token        classic PAT with write:packages
+#   easypanel_token   API token for <easypanel-url>
+#   slack_webhook     Slack incoming webhook, no image filter
+# Repo setting: "Cancel previous pipelines" must NOT include push, or a new push
+# kills a deploy mid-flight.
+when:
+  - event: push
+    branch: master
+    # Monorepo with several deploy workflows: add a `path:` list of what the
+    # image is built from, plus this file. Path filters apply to push only.
+  # Manual runs deploy only from master; a manual run on any other branch would
+  # otherwise ship that branch to production.
+  - event: manual
+    branch: master
+
+depends_on:
+  - checks
+  # - e2e
+
+steps:
+  - name: build
+    # Exactly this tag: the plugin runs privileged, and the server accepts only
+    # the tags listed in WOODPECKER_PLUGINS_PRIVILEGED.
+    image: woodpeckerci/plugin-docker-buildx:6
+    settings:
+      registry: ghcr.io
+      # GHCR image paths must be lowercase.
+      repo: ghcr.io/<org>/<app>
+      username:
+        from_secret: ghcr_username
+      password:
+        from_secret: ghcr_token
+      # Subfolder app: context: <dir>, dockerfile: <dir>/Dockerfile
+      platforms: linux/amd64
+      # The service runs `latest`; the sha tag is for rollback.
+      tags:
+        - latest
+        - sha-${CI_COMMIT_SHA}
+      # A map, not a list of KEY=VALUE: a list becomes `--build-arg *=KEY=VALUE`
+      # and the build stays green with empty args. NEXT_PUBLIC_* values are
+      # inlined at build time, so they go here, never in the panel's env.
+      build_args:
+        BUILD_SHA: ${CI_COMMIT_SHA}
+      # Registry-backed cache in the same GHCR repo. ignore-error keeps a cache
+      # hiccup from failing the deploy. The plugin splits cache_from on commas;
+      # `\,` keeps it one value, and single quotes pass the backslash through.
+      cache_from: 'type=registry\,ref=ghcr.io/<org>/<app>:buildcache'
+      cache_to: type=registry,ref=ghcr.io/<org>/<app>:buildcache,mode=max,ignore-error=true
+
+  - name: deploy
+    image: curlimages/curl:8.22.0
+    environment:
+      EASYPANEL_URL: <easypanel-url>
+      EASYPANEL_TOKEN:
+        from_secret: easypanel_token
+      EP_PROJECT: <ep-project>
+      EP_SERVICE: <ep-service>
+    commands:
+      # Never add `|| true` or `|| echo`: the `||` branch succeeds, so a refused
+      # redeploy goes green while production keeps the old image.
+      # `--fail-with-body` exits non-zero on >= 400 and keeps EasyPanel's reason
+      # in the log. A 2xx only means EasyPanel ACCEPTED the redeploy; it pulls
+      # and restarts on its own, so a crash loop still leaves this step green.
+      #
+      # `$$` stops Woodpecker substituting the variable before the shell sees it.
+      - >
+        curl --fail-with-body -sS --max-time 60 -X POST
+        "$${EASYPANEL_URL}/api/trpc/services.app.deployService"
+        -H "Authorization: Bearer $${EASYPANEL_TOKEN}" -H "Content-Type: application/json"
+        -d "{\"json\":{\"projectName\":\"$${EP_PROJECT}\",\"serviceName\":\"$${EP_SERVICE}\"}}"
+
+  # Slack. The same two steps end every workflow; see SKILL.md "Notify".
+  - name: notify-failure
+    image: curlimages/curl:8.22.0
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook
+    commands:
+      - >
+        curl --fail-with-body -sS --max-time 20 -X POST "$${SLACK_WEBHOOK}"
+        -H "Content-Type: application/json"
+        -d "{\"text\":\":x: $${CI_REPO} $${CI_WORKFLOW_NAME} failed on $${CI_COMMIT_BRANCH}
+        (${CI_COMMIT_SHA:0:8} by $${CI_COMMIT_AUTHOR}): <$${CI_PIPELINE_URL}|pipeline $${CI_PIPELINE_NUMBER}>\"}"
+    failure: ignore
+    when:
+      - event: [push, tag, release, deployment, cron, manual]
+        status: [failure]
+
+  - name: notify-success
+    image: curlimages/curl:8.22.0
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook
+    commands:
+      - >
+        curl --fail-with-body -sS --max-time 20 -X POST "$${SLACK_WEBHOOK}"
+        -H "Content-Type: application/json"
+        -d "{\"text\":\":rocket: $${CI_REPO} deployed ${CI_COMMIT_SHA:0:8}
+        by $${CI_COMMIT_AUTHOR}: <$${CI_PIPELINE_URL}|pipeline $${CI_PIPELINE_NUMBER}>\"}"
+    failure: ignore
+    when:
+      - event: [push, manual]
+        branch: master
+        status: [success]
