@@ -1,0 +1,161 @@
+# Optional. Untested as written: adapt it and watch the first run end to end.
+#
+# One preview per open PR at https://pr-<number>-<app>.<domain>, an EasyPanel
+# service <app>-pr-<number> in project <ep-project>. preview-teardown.yaml
+# removes it when the PR closes. Woodpecker loads only .yaml/.yml: rename to
+# preview.yaml.disabled to pause it.
+#
+# The repo provides scripts/preview.sh: `up <service> <image> <host>` creates the
+# service if missing, points it at the image, sets the domain and env from
+# PREVIEW_ENV, and redeploys; `down <service>` removes it. EasyPanel answers in
+# oRPC shapes behind /api/trpc (`{"json": ...}`); test the script against it.
+#
+# Notify: Slack on failure and on success, the only PR workflow that posts, so
+# someone comes to check the preview. It runs only once checks (and e2e) pass;
+# a red check stops it before the build, and the PR shows that.
+#
+# Repo secrets this needs, allowed on pull_request and pull_request_closed.
+# Repo secrets, not org ones, so no other repo's PR pipeline can read them:
+#   ghcr_username     GitHub user that owns ghcr_token
+#   ghcr_token        classic PAT: write:packages, delete:packages, repo (the
+#                     PR comment); EasyPanel also pulls the image with it
+#   easypanel_token   API token for <easypanel-url>. A repo secret shadows the
+#                     org one, so allow push and manual too for deploy.yaml
+#   preview_env       KEY=VALUE lines set as the preview's runtime env
+#   slack_webhook     the org's webhook URL again, as a repo secret so it can
+#                     also allow pull_request. It shadows the org one, so allow
+#                     every event: push, tag, release, deployment, cron, manual
+#
+# Private repos only. A PR controls its own workflow files, so any PR that runs
+# can read these secrets, and no command filter stops it (curl, node, base64
+# all work). That is no new risk from teammates: anyone who can push a branch
+# already gets the push secrets. Fork PRs are the risk, and a private repo
+# with forking turned off at org level gets none.
+#
+# Public repo: GitHub can't turn forking off, so before adding a preview:
+#   - Keep Woodpecker's "Require approval" at forks or stricter. Never approve
+#     a fork pipeline without reading its .woodpecker/ and script changes;
+#     leaving it unapproved runs nothing.
+#   - To stop strangers opening PRs at all: GitHub repo Settings, Moderation
+#     options, Interaction limits, "Limit to repository collaborators" (lasts
+#     up to 6 months; renew it).
+#   - Or give the preview its own narrow secrets: a bot account's classic PAT
+#     with only write:packages + delete:packages (Admin on that one package),
+#     a separate Slack webhook, and an EasyPanel token that can't touch
+#     production. A leak then costs images and a webhook, not code or prod.
+#
+# DNS: a wildcard certificate matches one label, so the host stays ONE label
+# deep under the domain: pr-12-<app>.<domain> works, pr-12.<app>.<domain> fails
+# the TLS handshake.
+when:
+  - event: pull_request
+
+# A failing PR never reaches the build or the preview deploy.
+depends_on:
+  - checks
+  # - e2e
+
+steps:
+  - name: build
+    image: woodpeckerci/plugin-docker-buildx:6
+    settings:
+      registry: ghcr.io
+      repo: ghcr.io/<org>/<app>
+      username:
+        from_secret: ghcr_username
+      password:
+        from_secret: ghcr_token
+      platforms: linux/amd64
+      # The tag carries the commit sha: a fixed :pr-N tag can leave the host
+      # running the previously pulled layer, so the preview silently goes stale.
+      tags:
+        - pr-${CI_COMMIT_PULL_REQUEST}-${CI_COMMIT_SHA:0:7}
+      # Previews collect no analytics: no analytics build args.
+      build_args:
+        BUILD_SHA: ${CI_COMMIT_SHA}
+      # Read master's cache; write to a cache tag shared by all PRs. Writing to
+      # :buildcache would let a PR branch evict master's layers.
+      cache_from: 'type=registry\,ref=ghcr.io/<org>/<app>:buildcache'
+      cache_to: type=registry,ref=ghcr.io/<org>/<app>:pr-buildcache,mode=max,ignore-error=true
+
+  - name: deploy
+    # bash, curl and Debian's apt for jq. Install with apt, not apk: Alpine's
+    # mirror can be the one that fails from the CI host.
+    image: node:24.21.0
+    environment:
+      EASYPANEL_URL: <easypanel-url>
+      EASYPANEL_TOKEN:
+        from_secret: easypanel_token
+      EASYPANEL_PROJECT: <ep-project>
+      PREVIEW_ENV:
+        from_secret: preview_env
+      REGISTRY_USERNAME:
+        from_secret: ghcr_username
+      REGISTRY_PASSWORD:
+        from_secret: ghcr_token
+      PR: ${CI_COMMIT_PULL_REQUEST}
+      IMAGE: ghcr.io/<org>/<app>:pr-${CI_COMMIT_PULL_REQUEST}-${CI_COMMIT_SHA:0:7}
+    commands:
+      - apt-get update -qq && apt-get install -y -qq --no-install-recommends jq > /dev/null
+      # `$$` stops Woodpecker substituting the variable before the shell sees it.
+      - bash scripts/preview.sh up "<app>-pr-$${PR}" "$${IMAGE}" "pr-$${PR}-<app>.<domain>"
+
+  - name: comment
+    image: node:24.21.0
+    environment:
+      GH_TOKEN:
+        from_secret: ghcr_token
+      PR: ${CI_COMMIT_PULL_REQUEST}
+      SHA: ${CI_COMMIT_SHA}
+    commands:
+      - apt-get update -qq && apt-get install -y -qq --no-install-recommends jq > /dev/null
+      # One rolling comment per PR: edit the one that starts with **Preview:**,
+      # or post it the first time. CI_REPO is owner/name.
+      - |
+        api="https://api.github.com/repos/$${CI_REPO}/issues/$${PR}/comments"
+        body=$$(printf '**Preview:** https://pr-%s-<app>.<domain>\nBuilt from `%s`. Removed when this PR closes.' "$${PR}" "$${SHA}")
+        payload=$$(jq -cn --arg b "$${body}" '{body:$b}')
+        existing=$$(curl -fsS -H "Authorization: Bearer $${GH_TOKEN}" "$${api}?per_page=100" \
+          | jq -r '[.[] | select(.body | startswith("**Preview:**"))] | last | .id // empty')
+        if [ -n "$${existing}" ]; then
+          curl -fsS -o /dev/null -X PATCH -H "Authorization: Bearer $${GH_TOKEN}" \
+            "https://api.github.com/repos/$${CI_REPO}/issues/comments/$${existing}" -d "$${payload}"
+        else
+          curl -fsS -o /dev/null -X POST -H "Authorization: Bearer $${GH_TOKEN}" "$${api}" -d "$${payload}"
+        fi
+    # A preview that is up but uncommented is not worth a red PR.
+    failure: ignore
+
+  # Slack. Unlike the other workflows these run on pull_request, and the
+  # message names the PR instead of the branch.
+  - name: notify-failure
+    image: curlimages/curl:8.22.0
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook
+    commands:
+      - >
+        curl --fail-with-body -sS --max-time 20 -X POST "$${SLACK_WEBHOOK}"
+        -H "Content-Type: application/json"
+        -d "{\"text\":\":x: $${CI_REPO} preview for PR #$${CI_COMMIT_PULL_REQUEST} failed
+        (${CI_COMMIT_SHA:0:8} by $${CI_COMMIT_AUTHOR}): <$${CI_PIPELINE_URL}|pipeline $${CI_PIPELINE_NUMBER}>\"}"
+    failure: ignore
+    when:
+      - event: pull_request
+        status: [failure]
+
+  - name: notify-success
+    image: curlimages/curl:8.22.0
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook
+    commands:
+      - >
+        curl --fail-with-body -sS --max-time 20 -X POST "$${SLACK_WEBHOOK}"
+        -H "Content-Type: application/json"
+        -d "{\"text\":\":eyes: $${CI_REPO} preview for PR #$${CI_COMMIT_PULL_REQUEST} is up
+        (${CI_COMMIT_SHA:0:8} by $${CI_COMMIT_AUTHOR}): https://pr-$${CI_COMMIT_PULL_REQUEST}-<app>.<domain>\"}"
+    failure: ignore
+    when:
+      - event: pull_request
+        status: [success]

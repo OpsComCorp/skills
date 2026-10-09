@@ -1,0 +1,90 @@
+# Lint, typecheck and unit tests on every PR, every push to master and manual
+# runs. e2e.yaml, preview.yaml and deploy.yaml wait on it (`depends_on`), so a
+# PR is gated by exactly the steps that gate a deploy. A workflow that depends
+# on this one runs only when this one ran for the same event: keep the `when`
+# lists in step.
+when:
+  - event: pull_request
+  - event: push
+    branch: master
+  - event: manual
+
+# Optional: a database for the tests. A service is reached by its `name` as the
+# hostname (postgres:5432), never localhost, and never through a host port.
+# services:
+#   - name: postgres
+#     image: postgres:18-alpine
+#     environment:
+#       POSTGRES_DB: postgres
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: password
+
+steps:
+  # Optional, for graphile-migrate repos. Production applies
+  # migrations/committed/ only, so a schema change left in current.sql would
+  # pass every test here and never reach production.
+  # - name: migration-guard
+  #   image: alpine:3
+  #   commands:
+  #     - |
+  #       pending=$$(grep -vE '^[[:space:]]*(--.*)?$$' migrations/current.sql || true)
+  #       if [ -n "$${pending}" ]; then
+  #         echo "Uncommitted migration in migrations/current.sql; run the commit script first:"
+  #         echo "$${pending}"
+  #         exit 1
+  #       fi
+
+  - name: checks
+    # Exact patch, matching .nvmrc and the Dockerfile's base image.
+    image: node:24.21.0
+    environment:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+      # With the postgres service above:
+      # DATABASE_URL: postgres://postgres:password@postgres:5432/<app>_test
+    commands:
+      # corepack reads the pnpm version from package.json "packageManager".
+      - corepack enable pnpm
+      - pnpm install --frozen-lockfile
+      - pnpm lint
+      - pnpm typecheck
+      # The repo's own test script, not a glob here: a hardcoded glob silently
+      # drops new test files. Pin workers to the container's CPU cap
+      # (`-- --maxWorkers 2`) if timing-sensitive tests race.
+      - pnpm test
+      # With the postgres service above, wait for it before anything that
+      # connects (place this line before `pnpm test`):
+      # - timeout 60 bash -c 'until (echo > /dev/tcp/postgres/5432) 2> /dev/null; do sleep 1; done'
+
+  # Slack. The same two steps end every workflow; see SKILL.md "Notify".
+  - name: notify-failure
+    image: curlimages/curl:8.22.0
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook
+    commands:
+      - >
+        curl --fail-with-body -sS --max-time 20 -X POST "$${SLACK_WEBHOOK}"
+        -H "Content-Type: application/json"
+        -d "{\"text\":\":x: $${CI_REPO} $${CI_WORKFLOW_NAME} failed on $${CI_COMMIT_BRANCH}
+        (${CI_COMMIT_SHA:0:8} by $${CI_COMMIT_AUTHOR}): <$${CI_PIPELINE_URL}|pipeline $${CI_PIPELINE_NUMBER}>\"}"
+    failure: ignore
+    when:
+      - event: [push, tag, release, deployment, cron, manual]
+        status: [failure]
+
+  - name: notify-success
+    image: curlimages/curl:8.22.0
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook
+    commands:
+      - >
+        curl --fail-with-body -sS --max-time 20 -X POST "$${SLACK_WEBHOOK}"
+        -H "Content-Type: application/json"
+        -d "{\"text\":\":white_check_mark: $${CI_REPO} $${CI_WORKFLOW_NAME} passed on $${CI_COMMIT_BRANCH}
+        (${CI_COMMIT_SHA:0:8} by $${CI_COMMIT_AUTHOR}): <$${CI_PIPELINE_URL}|pipeline $${CI_PIPELINE_NUMBER}>\"}"
+    failure: ignore
+    when:
+      - event: [push, manual]
+        branch: master
+        status: [success]

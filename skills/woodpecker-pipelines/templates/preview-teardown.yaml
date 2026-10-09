@@ -1,0 +1,50 @@
+# Optional, and required whenever preview.yaml runs. Untested as written.
+#
+# Removes a PR's preview when the PR closes, merged or not, so abandoned PRs
+# don't leave services running and images piling up in the registry. Needs the
+# same repo secrets as preview.yaml, allowed on pull_request_closed.
+#
+# Notify: none. Closing a PR is not news, and slack_webhook is not allowed on
+# pull request events.
+when:
+  - event: pull_request_closed
+
+steps:
+  - name: destroy
+    image: node:24.21.0
+    environment:
+      EASYPANEL_URL: <easypanel-url>
+      EASYPANEL_TOKEN:
+        from_secret: easypanel_token
+      EASYPANEL_PROJECT: <ep-project>
+      PR: ${CI_COMMIT_PULL_REQUEST}
+    commands:
+      - apt-get update -qq && apt-get install -y -qq --no-install-recommends jq > /dev/null
+      # `$$` stops Woodpecker substituting the variable before the shell sees it.
+      - bash scripts/preview.sh down "<app>-pr-$${PR}"
+
+  - name: delete-images
+    image: node:24.21.0
+    environment:
+      GH_TOKEN:
+        from_secret: ghcr_token
+      PR: ${CI_COMMIT_PULL_REQUEST}
+    commands:
+      - apt-get update -qq && apt-get install -y -qq --no-install-recommends jq > /dev/null
+      # Collect every page first: deleting while paging shifts the pages.
+      - |
+        api="https://api.github.com/orgs/<org>/packages/container/<app>/versions"
+        ids=""
+        page=1
+        while :; do
+          versions=$$(curl -fsS -H "Authorization: Bearer $${GH_TOKEN}" "$${api}?per_page=100&page=$${page}")
+          [ "$$(echo "$${versions}" | jq length)" -gt 0 ] || break
+          ids="$${ids} $$(echo "$${versions}" | jq -r --arg p "pr-$${PR}-" \
+            '.[] | select(any(.metadata.container.tags[]?; startswith($p))) | .id')"
+          page=$$((page + 1))
+        done
+        for id in $${ids}; do
+          curl -fsS -X DELETE -H "Authorization: Bearer $${GH_TOKEN}" "$${api}/$${id}" && echo "deleted version $${id}"
+        done
+    # Best effort: a leftover image costs storage, not correctness.
+    failure: ignore

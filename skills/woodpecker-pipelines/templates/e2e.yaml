@@ -1,0 +1,65 @@
+# Optional. Playwright journeys in a real browser. Waits on checks.yaml, so a
+# lint or unit failure stops the pipeline before the browser starts. deploy.yaml
+# waits on it. Keep the `when` list in step with checks.yaml.
+when:
+  - event: pull_request
+  - event: push
+    branch: master
+  - event: manual
+
+depends_on:
+  - checks
+
+steps:
+  - name: e2e
+    image: node:24.21.0
+    environment:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+      # `next dev` sizes its heap from the machine's memory, not the
+      # container's cap, and restarts mid-test when it hits it. Set the heap
+      # below the cap if the app runs a dev server under test.
+      # NODE_OPTIONS: --max-old-space-size=4608
+    commands:
+      - corepack enable pnpm
+      - pnpm install --frozen-lockfile
+      # Or use image mcr.microsoft.com/playwright:v<version>-noble, whose tag
+      # must match @playwright/test in package.json, and drop this line.
+      - pnpm exec playwright install --with-deps chromium
+      # The workspace, and test-results/ with it, is gone once the step ends.
+      # Print each failed test's page snapshot into the log instead.
+      # The repo's own e2e script; `pnpm exec playwright test` only if it has none.
+      - pnpm test:e2e || { cat test-results/*/error-context.md; exit 1; }
+
+  # Slack. The same two steps end every workflow; see SKILL.md "Notify".
+  - name: notify-failure
+    image: curlimages/curl:8.22.0
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook
+    commands:
+      - >
+        curl --fail-with-body -sS --max-time 20 -X POST "$${SLACK_WEBHOOK}"
+        -H "Content-Type: application/json"
+        -d "{\"text\":\":x: $${CI_REPO} $${CI_WORKFLOW_NAME} failed on $${CI_COMMIT_BRANCH}
+        (${CI_COMMIT_SHA:0:8} by $${CI_COMMIT_AUTHOR}): <$${CI_PIPELINE_URL}|pipeline $${CI_PIPELINE_NUMBER}>\"}"
+    failure: ignore
+    when:
+      - event: [push, tag, release, deployment, cron, manual]
+        status: [failure]
+
+  - name: notify-success
+    image: curlimages/curl:8.22.0
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook
+    commands:
+      - >
+        curl --fail-with-body -sS --max-time 20 -X POST "$${SLACK_WEBHOOK}"
+        -H "Content-Type: application/json"
+        -d "{\"text\":\":white_check_mark: $${CI_REPO} $${CI_WORKFLOW_NAME} passed on $${CI_COMMIT_BRANCH}
+        (${CI_COMMIT_SHA:0:8} by $${CI_COMMIT_AUTHOR}): <$${CI_PIPELINE_URL}|pipeline $${CI_PIPELINE_NUMBER}>\"}"
+    failure: ignore
+    when:
+      - event: [push, manual]
+        branch: master
+        status: [success]
